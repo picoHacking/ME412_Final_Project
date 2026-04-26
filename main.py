@@ -51,7 +51,7 @@ V_in = -Re * mu / (rho * l_w)  # m/s (toward negative y)
 # RESET TO ZEROS AFTER TESTING Note that U grid is offset 1/2 step to the right of P grid
 U = np.ones([ny + 2, nx + 1])
 # Note that V grid is offset 1/2 step up from P grid
-V = np.zeros([ny+1, nx + 2])
+V = np.ones([ny+1, nx + 2])
 P = np.zeros([ny + 2, nx + 2])
 
 U_star = np.zeros_like(U)
@@ -78,7 +78,7 @@ def apply_bcs(U, V):
     # --- For V --- #
     # No slip walls (vertical boundaries have ghost cells)
     V[0:h,1] = -V[0:h,0]  # outer left wall
-    V[0:h,w - 1] = -V[0:h,w]  # outer right wall
+    V[0:h,w] = -V[0:h,w-1]  # outer right wall
     V[0,0:w] = 0  # outer bottom wall
     V[cw,cw:w-cw] = 0  # inner bottom wall
     V[cw:h,cw - 1] = -V[cw:h,cw]  # inner left wall
@@ -92,11 +92,17 @@ def apply_bcs(U, V):
     U[h,w-cw:w] = U[h - 1,w-cw:w]
     V[h,w-cw:w] = V[h - 1,w-cw:w]
 
-
+def predictor():
+    U_up = np.maximum(U,0) # positive
+    U_dn = np.minimum(U,0) # negative
+    du2dx = (U[1:ny+1,1:nx+1]+U[1:ny+1,2:nx+2])*\
+        (U[1:ny+1,1:nx+1]+U[1:ny+1,2:nx+2]) - #wip
+    
+    
 apply_bcs(U, V)
 print(np.min(V))
-X = np.linspace(0, nx+1, nx+1)
-Y = np.linspace(0, ny + 2, ny + 2)
+X = np.linspace(0, nx+2, nx+2)
+Y = np.linspace(0, ny + 1, ny + 1)
 X, Y = np.meshgrid(X, Y)
-plt.contourf(X, Y, U)
+plt.contourf(X, Y, V)
 plt.show()
