@@ -2,6 +2,8 @@
 # Amanda Yaklin and Christina Li
 # 4/20/2026 - 5/10/2026
 
+# Note: numpy arrays are indexed as [y,x]
+
 # --- Objectives
 # Model 2D incompressible flow through a block U channel on a cartesian grid.
 # Analyze the effect of Reynolds number and grid resolution on the flow field
@@ -16,66 +18,85 @@ import matplotlib.pyplot as plt
 #   chw
 #   <->
 # ^ ---      ---
-# | ---<-gw->---
+# | ---      ---
 # h ---      ---
 # | ------------
 # v ------------
 #   <----W----->
 
-ch_h = 1  # m total U channel height
-ch_w = 2  # m individual channel width
-ch_gw = 3  # m width of gap between vertical channels
+l_y = 1.0  # m total U channel height
+l_w = 0.2  # m individual channel width
+l_x = 1.0  # m total width
 
 # --- Grid
-nx = 300
-ny = 700
+nx = 64
+ny = 108
 
-dx = (2 * ch_w + ch_gw)/nx # m per grid cell
-dy = dx
+dx = l_x / nx  # m per grid cell
+dy = l_y / ny
 # issue: something is wrong with our grid calculations
 # --- Connect channels to grid
-cx = int(1 / dx)  # grid cells per mm x
-cy = int(1 / dy)  # grid cells per mm y
-h = int(ch_h*cy)  # m total U channel height
-w = int(ch_w*cx)  # m individual channel width
-gw = int(ch_gw*cy)  # m gap width
-total_w = int(2*w + gw)  # total U channel width
+h = ny  #  total U channel height
+w = nx  #  total U channel width
+cw = int(l_w / dx)  #  individual channel width 
 
 # --- Flow params
-rho = 1000 # kg/m3
-mu = 0.0010005 #Pa*s
+rho = 1000  # kg/m3
+mu = 0.0010005  # Pa*s
+Re = 100
 U_in = 0  # m/s, keep at zero for U-shaped channel
-V_in = -50*mu/(rho*ch_w)  # m/s (toward negative y)
-Re = -V_in*rho*ch_w/mu # Required V_in: -50*mu/(rho*ch_w), -100*mu/(rho*ch_w), -200*mu/(rho*ch_w)
+V_in = -Re * mu / (rho * l_w)  # m/s (toward negative y)
 
 # --- Initialize grids
-U = np.ones([nx, ny + 1])  # Note that U grid is offset 1/2 step to the right of P grid
-V = np.zeros([nx + 1, ny])  # Note that V grid is offset 1/2 step up from P grid
-P = np.zeros([nx + 1, ny + 1])
+# RESET TO ZEROS AFTER TESTING Note that U grid is offset 1/2 step to the right of P grid
+U = np.ones([ny + 2, nx + 1])
+# Note that V grid is offset 1/2 step up from P grid
+V = np.zeros([ny+1, nx + 2])
+P = np.zeros([ny + 2, nx + 2])
+
+U_star = np.zeros_like(U)
+V_star = np.zeros_like(V)
+rhs = np.zeros_like(P)
+
+# --- Simulation parameters
+max_iter = 5000
+poisson_tol = 1e-5
+poisson_max_iter = 1e+5
+max_error = 0
 
 # --- Boundary Conditions
-def apply_bcs(U, V, P):
+def apply_bcs(U, V):
     # --- For U --- #
     # No slip walls (horizontal boundaries have ghost cells)
-    U[0][0:h]=0  # outer left wall
-    U[2*w+gw][0:h]=0  # outer right wall
-    U[0:2*w+gw][0]=-U[0:2*w+gw][1]  # outer bottom wall
-    U[w:w+gw][w+1]=-U[w:w+gw][w]  # inner bottom wall
-    U[w][w:h]=0 # inner left wall
-    U[w+gw][w:h]=0 # inner right wall
-    # Inlet
-    U[0:w][h]=0
-    # Outlet
-    U[w+gw:2*w+gw][h]=0
+    U[0:h,0] = 0  # outer left wall
+    U[0:h,w] = 0  # outer right wall
+    U[0,0:w] = -U[1,0:w]  # outer bottom wall
+    U[cw + 1,cw:w-cw] = -U[cw,cw:w-cw]  # inner bottom wall
+    U[cw:h,cw] = 0  # inner left wall
+    U[cw:h,w-cw] = 0  # inner right wall
+
     # --- For V --- #
+    # No slip walls (vertical boundaries have ghost cells)
+    V[0:h,1] = -V[0:h,0]  # outer left wall
+    V[0:h,w - 1] = -V[0:h,w]  # outer right wall
+    V[0,0:w] = 0  # outer bottom wall
+    V[cw,cw:w-cw] = 0  # inner bottom wall
+    V[cw:h,cw - 1] = -V[cw:h,cw]  # inner left wall
+    V[cw:h,w-cw + 1] = -V[cw:h,w-cw]  # inner right wall
+
+    # --- Inlet/Outlet --- #
+    # Inlet
+    U[h,0:cw] = 0
+    V[h,0:cw] = V_in
+    # Outlet
+    U[h,w-cw:w] = U[h - 1,w-cw:w]
+    V[h,w-cw:w] = V[h - 1,w-cw:w]
 
 
-apply_bcs(U, V, P)
+apply_bcs(U, V)
 print(np.min(V))
-X = np.linspace(0, nx, nx)
-Y = np.linspace(0, ny+1, ny+1)
+X = np.linspace(0, nx+1, nx+1)
+Y = np.linspace(0, ny + 2, ny + 2)
 X, Y = np.meshgrid(X, Y)
-plt.contourf(X, Y, U.T)
+plt.contourf(X, Y, U)
 plt.show()
-
-
